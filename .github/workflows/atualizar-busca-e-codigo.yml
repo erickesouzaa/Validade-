@@ -14,5 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Teste
-        run: echo "Workflow valido"
+      - name: Aplicar patch
+        env:
+          PATCH_B64: "ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCnA9UGF0aCgnaW5kZXguaHRtbCcpCnM9cC5yZWFkX3RleHQoZW5jb2Rpbmc9J3V0Zi04JykKY3NzPSdcbiAgLmNvZGlnby1saWRve21hcmdpbjotNHB4IDAgMThweDtwYWRkaW5nOjEwcHggMTJweDtib3JkZXI6MXB4IHNvbGlkIHZhcigtLWNvci1ib3JkYSk7Ym9yZGVyLXJhZGl1czo2cHg7YmFja2dyb3VuZDp2YXIoLS1jb3ItZnVuZG8pO3RleHQtYWxpZ246Y2VudGVyO2ZvbnQtc2l6ZSouODRlbTtjb2xvcjp2YXIoLS1jb3ItdGV4dG8tc2VjdW5kYXJpbyl9XG4gIC5jb2RpZ28tbGlkbyBzdHJvbmd7Y29sb3I6dmFyKC0tY29yLXRleHRvKTtmb250LXNpemU6Ljk1ZW07bGV0dGVyLXNwYWNpbmc6LjVweX1cbiIKaWYgJy5jb2RpZ28tbGlkbyB7JyBub3QgaW4gczpzPXMucmVwbGFjZSgnPC9zdHlsZT4nLGNzcysnPC9zdHlsZT4nLDEpCm5lZWRsZT0nICAgIDxpbnB1dCB0eXBlPSJoaWRkZW4iIGlkPSJmb3JtLWNvZGlnbyI+JwppbnNlcnQ9JyAgICAgIDxkaXYgaWQ9ImNvZGlnby1saWRvIiBjbGFzcz0iY29kaWdvLWxsaWRvIG9jdWx0byI+Q8OzZGlnbyBsaWRvOiA8c3Ryb25nIGlkPSJjb2RpZ28tbGlkby12YWxvciI+PC9zdHJvbmc+PC9kaXY+XG4gICAgICBfaW5wdXQgdHlwZT0iaGlkZGVuIiBpZD0iZm9ybS1jb2RpZ28iPicKaWYgbmVlZGxlIGluIHMgYW5kICdpZD0iY29kaWdvLWxpZG8tdmFsb3IiIG5vdCBpbiBzOnM9cy5yZXBsYWNlKG5lZWRsZSxpbnNlcnQsMSkKc3RhcnQ9cy5maW5kKCcgIGFzeW5jIGZ1bmN0aW9uIGJ1c2NhclByb2R1dG9BUEkoY29kaWdvKSB7JykKZW5kPXMuc2VmaW5kKCcgIGZ1bmN0aW9uIHByZWVuY2hlckZvcm11bGFyaW8oY29kaWdvLCBwcm9kdXRvKSB7JyxzdGFydCkKaWYgc3RhcnQ8MCBvciBlbmQ8MDpyYWlzZSBTeXN0ZW1FeGl0KCdmdW5jb2VzIG5hbyBlbmNvbnRyYWRhcycpCmZuPScgIGFzeW5jIGZ1bmN0aW9uIGJ1c2NhclByb2R1dG9BUEkoY29kaWdvKSB7XG4gICAgY29uc3QgY2FtcG9zPScnXG4gICAgY29uc3Qgbm9ybWFsaXphcj1wPT57aWYocClyZXR1cm4gbnVsbDtjb25zdCBub21lPXAudC5uYW1lO2lmKCFub21lKXJldHVybiBudWxsO3JldHVybntub21lLF9fXG4gICAgfX0n"
+        run: |
+          echo "$PATCH_B64" | base64 -d > /tmp/patch.py
+          python3 /tmp/patch.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --quiet || (git commit -m 'Corrige codigo lido e busca de farmacia' && git push)
