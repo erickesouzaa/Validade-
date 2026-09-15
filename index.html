@@ -203,6 +203,9 @@
   .modal { position: fixed; inset: 0; background: rgba(38,51,44,0.5); display: flex; align-items: flex-end; justify-content: center; z-index: 100; }
   .modal-conteudo { background: var(--cor-card); border-radius: 20px 20px 0 0; padding: 22px 20px 26px; width: 100%; max-width: 480px; }
   .modal-titulo { font-weight: 700; font-size: 1.1rem; margin-bottom: 18px; }
+
+  .codigo-lido { margin: -4px 0 18px; padding: 10px 12px; border: 1px solid var(--cor-borda); border-radius: 10px; background: var(--cor-fundo); text-align: center; font-size: .84rem; color: var(--cor-texto-secundario); }
+  .codigo-lido strong { color: var(--cor-texto); font-size: .95rem; letter-spacing: .5px; }
 </style>
 <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
 </head>
@@ -257,6 +260,7 @@
       <div id="aviso-nao-encontrado" class="aviso oculto">Item não encontrado na base pública. Preencha os campos abaixo.</div>
       <img id="form-imagem" class="form-imagem oculto" alt="Foto do Produto">
       <div id="form-marca-linha" class="form-marca-linha oculto">Marca: <strong id="form-marca"></strong></div>
+      <div id="codigo-lido" class="codigo-lido oculto">Código lido: <strong id="codigo-lido-valor"></strong></div>
       <input type="hidden" id="form-codigo">
       
       <div class="campo">
@@ -538,79 +542,101 @@
   }
 
   async function buscarProdutoAPI(codigo) {
-  const campos = 'product_name,product_name_pt,product_name_en,brands,image_front_small_url';
+    const campos = 'product_name,product_name_pt,product_name_en,brands,image_front_small_url';
 
-  const normalizar = (p) => {
-    if (!p) return null;
-    const nome = p.product_name_pt || p.product_name || p.product_name_en ||
-                 p.title || p.nome || p.name;
-    if (!nome) return null;
-    return {
-      nome,
-      marca: p.brands || p.brand || p.marca || '',
-      imagem: p.image_front_small_url || p.image_url || p.imagem_url ||
-              (Array.isArray(p.images) ? p.images[0] : null) || null
+    const normalizar = (p) => {
+      if (!p) return null;
+      const nome = p.product_name_pt || p.product_name || p.product_name_en || p.title || p.nome || p.name;
+      if (!nome) return null;
+      return {
+        nome: String(nome).trim(),
+        marca: p.brands || p.brand || p.marca || p.laboratorio || '',
+        imagem: p.image_front_small_url || p.image_url || p.imagem_url || (Array.isArray(p.images) ? p.images[0] : null) || null
+      };
     };
-  };
 
-  try {
-    const url = `https://world.openfoodfacts.org/api/v3/product/${encodeURIComponent(codigo)}?product_type=all&cc=br&lc=pt&fields=${campos}`;
-    const res = await fetch(url);
-    if (res.ok) {
-      const data = await res.json();
-      const achado = normalizar(data && data.product);
-      if (achado) return achado;
-    }
-  } catch (e) {}
+    const tentarJson = async (url, transformar) => {
+      try {
+        const res = await fetch(url, { headers: { Accept: 'application/json' } });
+        if (!res.ok) return null;
+        return transformar(await res.json());
+      } catch (e) {
+        return null;
+      }
+    };
 
-  try {
-    const res = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(codigo)}`);
-    if (res.ok) {
-      const data = await res.json();
-      const achado = normalizar(data && data.items && data.items[0]);
-      if (achado) return achado;
-    }
-  } catch (e) {}
+    // Catalogo brasileiro amplo, incluindo medicamentos e higiene.
+    let achado = await tentarJson(
+      `https://dotcompany.com.br/api/catalogo/public/buscar?q=${encodeURIComponent(codigo)}`,
+      data => normalizar(data && data.produto)
+    );
+    if (achado) return achado;
 
-  try {
-    const res = await fetch(`https://dotcompany.com.br/api/catalogo/public/buscar?q=${encodeURIComponent(codigo)}`);
-    if (res.ok) {
-      const data = await res.json();
-      const achado = normalizar(data && data.produto);
-      if (achado) return achado;
-    }
-  } catch (e) {}
-
-  const fontes = [
-    'https://world.openfoodfacts.org',
-    'https://world.openbeautyfacts.org',
-    'https://world.openpetfoodfacts.org',
-    'https://world.openproductsfacts.org'
-  ];
-  for (const base of fontes) {
+    // Base especializada em medicamentos brasileiros, cruzada com ANVISA/CMED.
     try {
-      const res = await fetch(`${base}/api/v2/product/${encodeURIComponent(codigo)}.json?fields=${campos}`);
-      if (!res.ok) continue;
-      const data = await res.json();
-      const achado = data && data.status === 1 ? normalizar(data.product) : null;
-      if (achado) return achado;
+      const res = await fetch(`https://dadosmedicamentos.com.br/ean/${encodeURIComponent(codigo)}`);
+      if (res.ok) {
+        const html = await res.text();
+        const m = html.match(/<title[^>]*>\s*EAN\s+[^<]+?\s*[—-]\s*([^<]+?)\s*<\/title>/i);
+        if (m && m[1]) {
+          let nome = m[1].replace(/\s+/g, ' ').trim();
+          const marca = nome.match(/\(([^()]+)\)\s*$/);
+          if (marca) nome = nome.replace(/\s*\([^()]+\)\s*$/, '').trim();
+          if (nome) return { nome, marca: marca ? marca[1] : '', imagem: null };
+        }
+      }
     } catch (e) {}
+
+    // Open Food Facts universal: alimentos, cosmeticos, pet food e outros.
+    achado = await tentarJson(
+      `https://world.openfoodfacts.org/api/v3/product/${encodeURIComponent(codigo)}?product_type=all&cc=br&lc=pt&fields=${campos}`,
+      data => normalizar(data && data.product)
+    );
+    if (achado) return achado;
+
+    // Bases Open*Facts diretamente.
+    for (const base of [
+      'https://world.openfoodfacts.org',
+      'https://world.openbeautyfacts.org',
+      'https://world.openpetfoodfacts.org',
+      'https://world.openproductsfacts.org'
+    ]) {
+      achado = await tentarJson(
+        `${base}/api/v2/product/${encodeURIComponent(codigo)}.json?fields=${campos}`,
+        data => data && data.status === 1 ? normalizar(data.product) : null
+      );
+      if (achado) return achado;
+    }
+
+    // Base global adicional.
+    achado = await tentarJson(
+      `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(codigo)}`,
+      data => normalizar(data && data.items && data.items[0])
+    );
+    if (achado) return achado;
+
+    const locais = {
+      '7897042016297': {
+        nome: 'Loção Hidratante Corporal Skalinha Bebê Lavanda 200 ml',
+        marca: 'Skala',
+        imagem: null
+      }
+    };
+    return locais[codigo] || null;
   }
 
-  const locais = {
-    '7897042016297': {
-      nome: 'Locao Hidratante Corporal Skalinha Bebe Lavanda 200 ml',
-      marca: 'Skala',
-      imagem: null
-    }
-  };
-  return locais[codigo] || null;
-}
-
-
-
-
   function preencherFormulario(codigo, produto) {
+    const codigoEl = document.getElementById('codigo-lido');
+    const codigoValorEl = document.getElementById('codigo-lido-valor');
+    if (codigoEl && codigoValorEl) {
+      if (codigo) {
+        codigoValorEl.textContent = codigo;
+        codigoEl.classList.remove('oculto');
+      } else {
+        codigoValorEl.textContent = '';
+        codigoEl.classList.add('oculto');
+      }
+    }
     document.getElementById('form-codigo').value = codigo;
     document.getElementById('form-nome').value = produto?.nome || '';
     document.getElementById('form-validade').value = '';
