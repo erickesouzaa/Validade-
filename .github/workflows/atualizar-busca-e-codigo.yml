@@ -10,7 +10,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Atualizar index
-        run: echo 'IyBubw==' > /dev/null
       - name: Aplicar alteracoes
-        run: echo 'IyBubw==' > /dev/null
+        run: echo 'CiMjIG5vCgo=' | base64 -d > /dev/null
