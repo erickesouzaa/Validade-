@@ -1,0 +1,49 @@
+name: Corrigir medicamento
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositorio
+        uses: actions/checkout@v4
+
+      - name: Adicionar medicamento de teste
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          novo = """    '7896004787527': {
+              nome: 'Linadib 5 mg 30 comprimidos revestidos',
+              marca: 'Sigma Pharma / EMS',
+              imagem: null
+            },
+"""
+          if "'7896004787527':" not in s:
+              alvo = "    '7897042016297': {\n"
+              if alvo not in s:
+                  raise SystemExit('Ponto de insercao nao encontrado')
+              s = s.replace(alvo, novo + alvo, 1)
+              p.write_text(s, encoding='utf-8')
+          else:
+              print('Codigo ja existe; nada a alterar.')
+          PY
+
+      - name: Salvar alteracao e remover workflow temporario
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Reconhecer EAN 7896004787527" || true
+          git push
+          rm -f .github/workflows/corrigir-linadib.yml
+          git add .github/workflows/corrigir-linadib.yml
+          git commit -m "Remover workflow temporario" || true
+          git push || true
