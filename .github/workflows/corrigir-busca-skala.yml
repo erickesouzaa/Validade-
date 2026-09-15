@@ -7,4 +7,72 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "Workflow funcionando"
+      - name: Atualizar index
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          start = s.find('  async function buscarProdutoAPI(codigo) {')
+          end = s.find('\n  function preencherFormulario(codigo, produto) {', start)
+          if start < 0 or end < 0:
+              raise SystemExit('Função buscarProdutoAPI não encontrada')
+
+          fn = '''  async function buscarProdutoAPI(codigo) {
+    const campos = 'product_name,product_name_pt,product_name_en,brands,image_front_small_url';
+
+    try {
+      const url = `https://world.openfoodfacts.org/api/v3/product/${encodeURIComponent(codigo)}?product_type=all&fields=${campos}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.product) {
+          const p = data.product;
+          const nome = p.product_name_pt || p.product_name || p.product_name_en;
+          if (nome) return { nome, marca: p.brands || '', imagem: p.image_front_small_url || null };
+        }
+      }
+    } catch (e) {}
+
+    const fontes = [
+      'https://world.openfoodfacts.org',
+      'https://world.openbeautyfacts.org',
+      'https://world.openpetfoodfacts.org',
+      'https://world.openproductsfacts.org'
+    ];
+
+    for (const base of fontes) {
+      try {
+        const res = await fetch(`${base}/api/v2/product/${encodeURIComponent(codigo)}?fields=${campos}`);
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data && data.status === 1 && data.product) {
+          const p = data.product;
+          const nome = p.product_name_pt || p.product_name || p.product_name_en;
+          if (nome) return { nome, marca: p.brands || '', imagem: p.image_front_small_url || null };
+        }
+      } catch (e) {}
+    }
+
+    const produtosConhecidos = {
+      '7897042016297': {
+        nome: 'Loção Hidratante Corporal Skalinha Bebê Lavanda 200 ml',
+        marca: 'Skala',
+        imagem: null
+      }
+    };
+
+    return produtosConhecidos[codigo] || null;
+  }'''
+
+          p.write_text(s[:start] + fn + s[end:], encoding='utf-8')
+          PY
+      - name: Salvar alteração
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'Melhora busca automática e reconhece Skala'
+          git push
