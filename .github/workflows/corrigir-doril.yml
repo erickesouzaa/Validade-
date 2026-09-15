@@ -1,0 +1,54 @@
+name: Adicionar Doril
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Adicionar codigos de medicamentos
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          novos = """    '7896004787527': {
+              nome: 'Linadib 5 mg 30 comprimidos revestidos',
+              marca: 'Sigma Pharma / EMS',
+              imagem: null
+            },
+            '7896094910553': {
+              nome: 'Doril 500 mg + 30 mg 6 comprimidos',
+              marca: 'Hypera Pharma',
+              imagem: null
+            },
+"""
+          alvo = "    '7897042016297': {\n"
+          if alvo not in s:
+              raise SystemExit('Ponto de insercao nao encontrado')
+          bloco = ''
+          if "'7896004787527':" not in s:
+              bloco += novos.split("            '7896094910553':")[0]
+          if "'7896094910553':" not in s:
+              if bloco:
+                  bloco += "            '7896094910553': {\n              nome: 'Doril 500 mg + 30 mg 6 comprimidos',\n              marca: 'Hypera Pharma',\n              imagem: null\n            },\n"
+              else:
+                  bloco = "            '7896094910553': {\n              nome: 'Doril 500 mg + 30 mg 6 comprimidos',\n              marca: 'Hypera Pharma',\n              imagem: null\n            },\n"
+          if bloco:
+              s = s.replace(alvo, bloco + alvo, 1)
+              p.write_text(s, encoding='utf-8')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Reconhecer EAN do Doril" || true
+          git push
+          git rm .github/workflows/corrigir-doril.yml
+          git commit -m "Remover workflow temporario do Doril" || true
+          git push
