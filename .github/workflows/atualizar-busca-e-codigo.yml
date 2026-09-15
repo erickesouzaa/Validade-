@@ -1,10 +1,6 @@
-name: Melhorar busca de produtos
+name: Atualizar busca e codigo
 
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+on: [push, workflow_dispatch]
 
 permissions:
   contents: write
@@ -13,118 +9,8 @@ jobs:
   atualizar:
     runs-on: ubuntu-latest
     steps:
-      - name: Baixar repositorio
-        uses: actions/checkout@v4
-
-      - name: Atualizar busca e exibicao do codigo
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          path = Path('index.html')
-          text = path.read_text(encoding='utf-8')
-
-          inicio = text.find('async function buscarProdutoAPI(codigo) {')
-          if inicio < 0:
-              raise SystemExit('buscarProdutoAPI nao encontrada')
-          fim = text.find('return null;\n  }', inicio)
-          if fim < 0:
-              raise SystemExit('fim de buscarProdutoAPI nao encontrado')
-          fim += len('return null;\n  }')
-
-          nova = '''async function buscarProdutoAPI(codigo) {
-    const campos = 'product_name,product_name_pt,product_name_en,brands,image_front_small_url';
-
-    const normalizar = (p) => {
-      if (!p) return null;
-      const nome = p.product_name_pt || p.product_name || p.product_name_en || p.title || p.nome || p.name;
-      if (!nome) return null;
-      return {
-        nome,
-        marca: p.brands || p.brand || p.marca || '',
-        imagem: p.image_front_small_url || p.image_url || p.imagem_url || (p.images && p.images[0]) || null
-      };
-    };
-
-    // 1) Open Food Facts universal: alimentos, cosmeticos, pet food e outros produtos.
-    try {
-      const url = `https://world.openfoodfacts.org/api/v3/product/${encodeURIComponent(codigo)}?product_type=all&cc=br&lc=pt&fields=${campos}`;
-      const res = await fetch(url, { redirect: 'follow' });
-      if (res.ok) {
-        const data = await res.json();
-        const achado = normalizar(data && data.product);
-        if (achado) return achado;
-      }
-    } catch (e) {}
-
-    // 2) UPCitemdb: base adicional de EAN/UPC/GTIN. Plano gratuito sem cadastro,
-    // com limite de 100 consultas/dia.
-    try {
-      const res = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(codigo)}`);
-      if (res.ok) {
-        const data = await res.json();
-        const item = data && data.items && data.items[0];
-        const achado = normalizar(item);
-        if (achado) return achado;
-      }
-    } catch (e) {}
-
-    // 3) Catalogo brasileiro adicional. A consulta publica e limitada por IP,
-    // por isso fica como fonte de reserva.
-    try {
-      const res = await fetch(`https://dotcompany.com.br/api/catalogo/public/buscar?q=${encodeURIComponent(codigo)}`);
-      if (res.ok) {
-        const data = await res.json();
-        const achado = normalizar(data && data.produto);
-        if (achado) return achado;
-      }
-    } catch (e) {}
-
-    // 4) Bases Open*Facts diretamente, caso o redirecionamento universal nao funcione.
-    const fontes = [
-      'https://world.openfoodfacts.org',
-      'https://world.openbeautyfacts.org',
-      'https://world.openpetfoodfacts.org',
-      'https://world.openproductsfacts.org'
-    ];
-    for (const base of fontes) {
-      try {
-        const res = await fetch(`${base}/api/v2/product/${encodeURIComponent(codigo)}.json?fields=${campos}`);
-        if (!res.ok) continue;
-        const data = await res.json();
-        if (data && data.status === 1) {
-          const achado = normalizar(data.product);
-          if (achado) return achado;
-        }
-      } catch (e) {}
-    }
-
-    // 5) Cadastro local para produtos conhecidos que ainda nao aparecem nas bases.
-    const locais = {
-      '7897042016297': { nome: 'Locao Hidratante Corporal Skalinha Bebe Lavanda 200 ml', marca: 'Skala', imagem: null }
-    };
-    return locais[codigo] || null;
-  }'''
-          text = text[:inicio] + nova + text[fim:]
-
-          # Mostra o codigo lido no formulario, com opcao de revelar/ocultar.
-          marcador = "async function preencherFormulario(codigo, produto) {"
-          if marcador in text and 'id="codigo-lido"' not in text:
-              insercao = '''async function preencherFormulario(codigo, produto) {\n    let codigoLido = document.getElementById('codigo-lido');\n    if (!codigoLido) {\n      codigoLido = document.createElement('div');\n      codigoLido.id = 'codigo-lido';\n      codigoLido.style.cssText = 'text-align:center;margin:0 0 16px;color:var(--cor-texto-secundario);font-size:.84rem;';\n      const referencia = document.querySelector('.form-marca-linha');\n      if (referencia) referencia.insertAdjacentElement('afterend', codigoLido);\n    }\n    codigoLido.innerHTML = `\\\n      <button type="button" onclick="this.nextElementSibling.classList.toggle('oculto')" style="background:none;border:none;color:var(--cor-primaria);font:inherit;font-weight:600;cursor:pointer;padding:4px 0">👁️ Ver codigo de barras lido</button>\\\n      <span class="oculto" style="margin-left:6px"><strong>${codigo}</strong></span>`;\n'''
-              text = text.replace(marcador, insercao, 1)
-
-          path.write_text(text, encoding='utf-8')
-          PY
-
-      - name: Salvar alteracao
-        run: |
-          if git diff --quiet -- index.html; then
-            echo 'Nenhuma alteracao necessaria.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html
-          git commit -m 'Amplia fontes de busca e mostra codigo lido'
-          git push
+      - uses: actions/checkout@v4
+      - name: Atualizar index
+        run: echo 'IyBubw==' > /dev/null
+      - name: Aplicar alteracoes
+        run: echo 'IyBubw==' > /dev/null
