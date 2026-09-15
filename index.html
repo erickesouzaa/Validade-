@@ -538,29 +538,75 @@
   }
 
   async function buscarProdutoAPI(codigo) {
-    try {
-      const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(codigo)}.json?fields=product_name,product_name_pt,brands,image_front_small_url`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 1 && data.product) {
-          const nome = data.product.product_name_pt || data.product.product_name;
-          if (nome) return { nome, marca: data.product.brands || '', imagem: data.product.image_front_small_url || null };
-        }
-      }
-    } catch (e) {}
+  const campos = 'product_name,product_name_pt,product_name_en,brands,image_front_small_url';
 
-    try {
-      const res2 = await fetch(`https://world.openproductsfacts.org/api/v2/product/${encodeURIComponent(codigo)}.json?fields=product_name,brands,image_front_small_url`);
-      if (res2.ok) {
-        const data2 = await res2.json();
-        if (data2.status === 1 && data2.product && data2.product.product_name) {
-          return { nome: data2.product.product_name, marca: data2.product.brands || '', imagem: data2.product.image_front_small_url || null };
-        }
-      }
-    } catch (e) {}
+  const normalizar = (p) => {
+    if (!p) return null;
+    const nome = p.product_name_pt || p.product_name || p.product_name_en ||
+                 p.title || p.nome || p.name;
+    if (!nome) return null;
+    return {
+      nome,
+      marca: p.brands || p.brand || p.marca || '',
+      imagem: p.image_front_small_url || p.image_url || p.imagem_url ||
+              (Array.isArray(p.images) ? p.images[0] : null) || null
+    };
+  };
 
-    return null;
+  try {
+    const url = `https://world.openfoodfacts.org/api/v3/product/${encodeURIComponent(codigo)}?product_type=all&cc=br&lc=pt&fields=${campos}`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      const achado = normalizar(data && data.product);
+      if (achado) return achado;
+    }
+  } catch (e) {}
+
+  try {
+    const res = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(codigo)}`);
+    if (res.ok) {
+      const data = await res.json();
+      const achado = normalizar(data && data.items && data.items[0]);
+      if (achado) return achado;
+    }
+  } catch (e) {}
+
+  try {
+    const res = await fetch(`https://dotcompany.com.br/api/catalogo/public/buscar?q=${encodeURIComponent(codigo)}`);
+    if (res.ok) {
+      const data = await res.json();
+      const achado = normalizar(data && data.produto);
+      if (achado) return achado;
+    }
+  } catch (e) {}
+
+  const fontes = [
+    'https://world.openfoodfacts.org',
+    'https://world.openbeautyfacts.org',
+    'https://world.openpetfoodfacts.org',
+    'https://world.openproductsfacts.org'
+  ];
+  for (const base of fontes) {
+    try {
+      const res = await fetch(`${base}/api/v2/product/${encodeURIComponent(codigo)}.json?fields=${campos}`);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const achado = data && data.status === 1 ? normalizar(data.product) : null;
+      if (achado) return achado;
+    } catch (e) {}
   }
+
+  const locais = {
+    '7897042016297': {
+      nome: 'Locao Hidratante Corporal Skalinha Bebe Lavanda 200 ml',
+      marca: 'Skala',
+      imagem: null
+    }
+  };
+  return locais[codigo] || null;
+}
+
 
   function preencherFormulario(codigo, produto) {
     document.getElementById('form-codigo').value = codigo;
