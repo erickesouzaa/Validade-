@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Validade</title>
+<style>
+  :root {
+    --cor-fundo: #F7F7F4;
+    --cor-card: #FFFFFF;
+    --cor-primaria: #2D6A4F;
+    --cor-primaria-hover: #22533D;
+    --cor-primaria-clara: #E8F1EC;
+    --cor-perigo: #C0392B;
+    --cor-perigo-clara: #F7E6E3;
+    --cor-alerta: #A6740A;
+    --cor-alerta-clara: #F5EDD9;
+    --cor-texto: #26332C;
+    --cor-texto-secundario: #6B7568;
+    --cor-borda: #E3E1D9;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--cor-fundo);
+    color: var(--cor-texto);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 80px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--cor-borda);
+    text-align: center;
+    background: var(--cor-card);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header h1 {
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+
+  main { flex: 1; padding: 18px; max-width: 480px; margin: 0 auto; width: 100%; }
+
+  .tela { display: none; }
+  .tela.ativa { display: block; }
+  .oculto { display: none !important; }
+
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 14px;
+    border: none; border-radius: 12px;
+    font-size: 0.98rem; font-weight: 600; cursor: pointer;
+    margin-bottom: 10px; font-family: inherit;
+    transition: background-color 0.2s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primario { background: var(--cor-primaria); color: white; }
+  .btn-primario:hover { background: var(--cor-primaria-hover); }
+  .btn-secundario { background: var(--cor-card); color: var(--cor-texto); border: 1.5px solid var(--cor-borda); }
+
+  .link-secundario {
+    background: none; border: none; color: var(--cor-texto-secundario);
+    font-size: 0.88rem; padding: 10px; text-decoration: underline;
+    text-underline-offset: 3px; cursor: pointer; font-family: inherit; display: block; margin: 0 auto;
+  }
+
+  #estado-inicial { text-align: center; padding-top: 16px; }
+  .botao-scan-principal {
+    width: 96px; height: 96px; border-radius: 50%;
+    background: var(--cor-primaria); border: none; color: white;
+    font-size: 2.3rem; display: flex; align-items: center; justify-content: center;
+    margin: 20px auto 14px; cursor: pointer;
+    box-shadow: 0 8px 20px rgba(45,106,79,0.3);
+  }
+  .botao-scan-principal:active { transform: scale(0.95); }
+  .scan-label-principal { font-weight: 600; margin-bottom: 24px; font-size: 1.05rem; }
+  .opcoes-secundarias { display: flex; flex-direction: column; gap: 4px; }
+
+  #estado-camera { position: relative; }
+  .camera-viewport {
+    position: relative; border-radius: 16px; overflow: hidden;
+    background: #0B0E0C; aspect-ratio: 3/4; margin-bottom: 14px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #video-camera { width: 100%; height: 100%; object-fit: cover; }
+  
+  .viewfinder { position: absolute; top: 35%; left: 10%; right: 10%; height: 26%; pointer-events: none; }
+  .canto { position: absolute; width: 24px; height: 24px; border: 3px solid #2ECC71; }
+  .canto-tl { top: 0; left: 0; border-right: none; border-bottom: none; border-radius: 6px 0 0 0; }
+  .canto-tr { top: 0; right: 0; border-left: none; border-bottom: none; border-radius: 0 6px 0 0; }
+  .canto-bl { bottom: 0; left: 0; border-right: none; border-top: none; border-radius: 0 0 0 6px; }
+  .canto-br { bottom: 0; right: 0; border-left: none; border-top: none; border-radius: 0 0 6px 0; }
+  .linha-guia {
+    position: absolute; top: 50%; left: 4%; right: 4%; height: 2px;
+    background: rgba(46, 204, 113, 0.7); box-shadow: 0 0 8px #2ECC71;
+  }
+
+  .dica-camera { text-align: center; color: var(--cor-texto-secundario); font-size: 0.85rem; margin-bottom: 14px; }
+
+  .aviso {
+    background: var(--cor-alerta-clara); color: var(--cor-alerta);
+    padding: 12px 14px; border-radius: 10px; font-size: 0.85rem; margin-bottom: 16px; line-height: 1.4;
+  }
+  .aviso-erro { background: var(--cor-perigo-clara); color: var(--cor-perigo); }
+  .erro-form { color: var(--cor-perigo); font-size: 0.85rem; margin-bottom: 12px; }
+
+  .carregando { text-align: center; padding: 50px 20px; color: var(--cor-texto-secundario); }
+  .spinner {
+    border: 3px solid var(--cor-borda); border-top-color: var(--cor-primaria);
+    border-radius: 50%; width: 32px; height: 32px;
+    animation: girar 0.8s linear infinite; margin: 0 auto 14px;
+  }
+  @keyframes girar { to { transform: rotate(360deg); } }
+
+  .form-imagem { width: 88px; height: 88px; object-fit: contain; background: #FFF; border: 1px solid var(--cor-borda); border-radius: 12px; margin: 0 auto 14px; display: block; padding: 4px; }
+  .form-marca-linha { text-align: center; color: var(--cor-texto-secundario); font-size: 0.85rem; margin-bottom: 16px; margin-top: -6px; }
+  .campo { margin-bottom: 16px; }
+  .campo label { display: block; font-size: 0.85rem; color: var(--cor-texto-secundario); margin-bottom: 6px; font-weight: 600; }
+  .campo input {
+    width: 100%; padding: 12px; border: 1.5px solid var(--cor-borda);
+    border-radius: 10px; font-size: 1rem; font-family: inherit; color: var(--cor-texto); background: var(--cor-card);
+  }
+  .campo input:focus { outline: none; border-color: var(--cor-primaria); }
+
+  .quantidade-controle { display: flex; align-items: center; gap: 12px; }
+  .quantidade-controle button {
+    width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+    border: 1.5px solid var(--cor-borda); background: var(--cor-card); font-size: 1.3rem; cursor: pointer; color: var(--cor-texto);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .quantidade-controle input { text-align: center; font-weight: bold; }
+
+  .painel-pesquisa { margin-bottom: 16px; position: relative; }
+  .input-busca {
+    width: 100%; padding: 12px 14px 12px 38px; border-radius: 10px;
+    border: 1.5px solid var(--cor-borda); font-size: 0.95rem; background: var(--cor-card);
+    transition: border-color 0.2s;
+  }
+  .input-busca:focus { outline: none; border-color: var(--cor-primaria); }
+  .icone-busca {
+    position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+    color: var(--cor-texto-secundario); font-size: 0.95rem; pointer-events: none;
+  }
+
+  .secao-lista { margin-bottom: 20px; background: var(--cor-card); border-radius: 14px; padding: 12px 14px; border: 1px solid var(--cor-borda); }
+  .secao-titulo { font-size: 0.95rem; font-weight: 700; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .secao-titulo .contagem { font-weight: 600; font-size: 0.8rem; padding: 2px 8px; border-radius: 12px; background: var(--cor-fundo); color: var(--cor-texto); }
+  .secao-vencido .secao-titulo { color: var(--cor-perigo); }
+  .secao-vencendo .secao-titulo { color: var(--cor-alerta); }
+  .secao-valido .secao-titulo { color: var(--cor-primaria); }
+
+  .item-linha { display: flex; gap: 12px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--cor-borda); }
+  .item-linha:last-child { border-bottom: none; }
+  .item-imagem, .item-imagem-placeholder {
+    width: 46px; height: 46px; border-radius: 8px; object-fit: contain; flex-shrink: 0; background: #FFF; border: 1px solid var(--cor-borda);
+  }
+  .item-imagem-placeholder { background: var(--cor-primaria-clara); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+  .item-info { flex: 1; min-width: 0; }
+  .item-nome { font-weight: 600; font-size: 0.93rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+  .item-detalhes { font-size: 0.8rem; color: var(--cor-texto-secundario); font-weight: 500; }
+  .tag-dias { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+  .tag-dias.vencido { background: var(--cor-perigo-clara); color: var(--cor-perigo); }
+  .tag-dias.vencendo { background: var(--cor-alerta-clara); color: var(--cor-alerta); }
+  .item-acoes { display: flex; gap: 4px; flex-shrink: 0; }
+  .btn-icone { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 6px; border-radius: 6px; }
+  .btn-icone:hover { background: var(--cor-fundo); }
+
+  .vazio { text-align: center; padding: 50px 20px; color: var(--cor-texto-secundario); }
+  .vazio p:first-child { font-weight: 600; color: var(--cor-texto); margin-bottom: 6px; }
+  .vazio-sub { font-size: 0.9rem; }
+
+  .rodape-lista { text-align: center; margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
+
+  .tab-bar {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 480px;
+    background: var(--cor-card); display: flex; border-top: 1px solid var(--cor-borda); z-index: 20;
+  }
+  .tab-btn {
+    flex: 1; padding: 12px; border: none; background: none; font-family: inherit;
+    font-size: 0.85rem; color: var(--cor-texto-secundario); cursor: pointer;
+  }
+  .tab-btn.ativa { color: var(--cor-primaria); font-weight: 700; }
+  .tab-icone { display: block; font-size: 1.25rem; margin-bottom: 2px; }
+
+  .toast {
+    position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
+    background: var(--cor-texto); color: white; padding: 10px 18px; border-radius: 100px;
+    font-size: 0.85rem; font-weight: 600; box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    z-index: 200; opacity: 0; transition: opacity 0.25s; max-width: 90%; text-align: center; pointer-events: none;
+  }
+  .toast.mostrar { opacity: 1; }
+
+  .modal { position: fixed; inset: 0; background: rgba(38,51,44,0.5); display: flex; align-items: flex-end; justify-content: center; z-index: 100; }
+  .modal-conteudo { background: var(--cor-card); border-radius: 20px 20px 0 0; padding: 22px 20px 26px; width: 100%; max-width: 480px; }
+  .modal-titulo { font-weight: 700; font-size: 1.1rem; margin-bottom: 18px; }
+</style>
+<script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+</head>
+<body>
+
+<header><h1>Controle de Validade</h1></header>
+
+<main>
+  <section id="tela-scanner" class="tela ativa">
+    <div id="estado-inicial">
+      <button class="botao-scan-principal" onclick="iniciarCamera()" aria-label="Escanear código de barras">📷</button>
+      <div class="scan-label-principal">Escanear código de barras</div>
+      <div class="opcoes-secundarias">
+        <button class="link-secundario" onclick="mostrarEntradaManual()">Digitar código manualmente</button>
+        <button class="link-secundario" onclick="adicionarSemCodigo()">Adicionar sem código de barras</button>
+      </div>
+    </div>
+
+    <div id="estado-camera" class="oculto">
+      <div class="camera-viewport">
+        <video id="video-camera" playsinline muted autoplay></video>
+        <div class="viewfinder">
+          <div class="canto canto-tl"></div>
+          <div class="canto canto-tr"></div>
+          <div class="canto canto-bl"></div>
+          <div class="canto canto-br"></div>
+          <div class="linha-guia"></div>
+        </div>
+      </div>
+      <div class="dica-camera">Aponte para o código de barras na horizontal</div>
+      <div id="erro-camera" class="aviso aviso-erro oculto"></div>
+      <button class="btn btn-secundario" onclick="voltarEstadoInicial()">Cancelar</button>
+    </div>
+
+    <div id="estado-manual" class="oculto">
+      <div class="campo">
+        <label for="input-codigo-manual">Código de barras (EAN)</label>
+        <input type="tel" id="input-codigo-manual" placeholder="Ex: 7891000100103">
+      </div>
+      <button class="btn btn-primario" onclick="confirmarCodigoManual()">Buscar produto</button>
+      <button class="btn btn-secundario" onclick="voltarEstadoInicial()">Cancelar</button>
+    </div>
+
+    <div id="estado-carregando" class="oculto">
+      <div class="carregando">
+        <div class="spinner"></div>
+        Consultando base de produtos…
+      </div>
+    </div>
+
+    <div id="estado-formulario" class="oculto">
+      <div id="aviso-nao-encontrado" class="aviso oculto">Item não encontrado na base pública. Preencha os campos abaixo.</div>
+      <img id="form-imagem" class="form-imagem oculto" alt="Foto do Produto">
+      <div id="form-marca-linha" class="form-marca-linha oculto">Marca: <strong id="form-marca"></strong></div>
+      <input type="hidden" id="form-codigo">
+      
+      <div class="campo">
+        <label for="form-nome">Nome do produto *</label>
+        <input type="text" id="form-nome" placeholder="Ex: Dipirona 500mg ou Iogurte Natural">
+      </div>
+      <div class="campo">
+        <label for="form-validade">Data de validade *</label>
+        <input type="date" id="form-validade">
+      </div>
+      <div class="campo">
+        <label>Quantidade</label>
+        <div class="quantidade-controle">
+          <button type="button" onclick="alterarQuantidade(-1)" aria-label="Diminuir">−</button>
+          <input type="number" id="form-quantidade" min="1" value="1" readonly>
+          <button type="button" onclick="alterarQuantidade(1)" aria-label="Aumentar">+</button>
+        </div>
+      </div>
+      <div id="erro-formulario" class="erro-form oculto"></div>
+      <button class="btn btn-primario" onclick="salvarItem()">Salvar produto</button>
+      <button class="btn btn-secundario" onclick="cancelarFormulario()">Cancelar</button>
+    </div>
+  </section>
+
+  <section id="tela-lista" class="tela">
+    <div class="painel-pesquisa">
+      <span class="icone-busca">🔍</span>
+      <input type="text" id="input-pesquisa" class="input-busca" placeholder="Buscar por nome ou código..." oninput="filtrarLista()">
+    </div>
+    
+    <div id="lista-itens"></div>
+
+    <div class="rodape-lista">
+      <button class="btn btn-secundario" onclick="exportarCSV()">📥 Exportar para CSV (Excel)</button>
+      <button class="link-secundario" onclick="confirmarLimparDados()">Limpar todos os dados</button>
+    </div>
+  </section>
+</main>
+
+<nav class="tab-bar">
+  <button id="tab-scanner" class="tab-btn ativa" onclick="trocarTela('scanner')">
+    <span class="tab-icone">📷</span>Scanner
+  </button>
+  <button id="tab-lista" class="tab-btn" onclick="trocarTela('lista')">
+    <span class="tab-icone">📋</span>Lista
+  </button>
+</nav>
+
+<div id="toast" class="toast oculto"></div>
+
+<div id="modal-editar" class="modal oculto">
+  <div class="modal-conteudo">
+    <div class="modal-titulo">Editar Item</div>
+    <div class="campo">
+      <label for="edit-nome">Nome do produto</label>
+      <input type="text" id="edit-nome">
+    </div>
+    <div class="campo">
+      <label for="edit-validade">Validade</label>
+      <input type="date" id="edit-validade">
+    </div>
+    <div class="campo">
+      <label>Quantidade</label>
+      <div class="quantidade-controle">
+        <button type="button" onclick="alterarQuantidadeEdicao(-1)" aria-label="Diminuir">−</button>
+        <input type="number" id="edit-quantidade" min="1" readonly>
+        <button type="button" onclick="alterarQuantidadeEdicao(1)" aria-label="Aumentar">+</button>
+      </div>
+    </div>
+    <button class="btn btn-primario" onclick="salvarEdicao()">Salvar alterações</button>
+    <button class="btn btn-secundario" onclick="fecharModalEdicao()">Voltar</button>
+  </div>
+</div>
+
+<script>
+  let itens = [];
+  let streamAtivo = null;
+  let codeReaderZXing = null;
+  let barcodeDetectorNativo = null;
+  let detectorLoop = null;
+  let travadoParaLeitura = false;
+  let itemEditandoId = null;
+  let toastTimeout = null;
+
+  function carregarItens() {
+    try {
+      const dados = localStorage.getItem('itens_validade');
+      itens = dados ? JSON.parse(dados) : [];
+    } catch (e) {
+      itens = [];
+    }
+    renderizarLista();
+  }
+
+  function salvarItens() {
+    try {
+      localStorage.setItem('itens_validade', JSON.stringify(itens));
+    } catch (e) {
+      console.error('Erro ao salvar no localStorage:', e);
+    }
+  }
+
+  function confirmarLimparDados() {
+    if (itens.length === 0) return;
+    if (confirm('Tem certeza que deseja apagar todos os itens cadastrados? Essa ação é permanente.')) {
+      itens = [];
+      salvarItens();
+      document.getElementById('input-pesquisa').value = '';
+      renderizarLista();
+      mostrarToast('Todos os itens foram apagados');
+    }
+  }
+
+  function trocarTela(tela) {
+    document.querySelectorAll('.tela').forEach(t => t.classList.remove('ativa'));
+    document.getElementById('tela-' + tela).classList.add('ativa');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('ativa'));
+    document.getElementById('tab-' + tela).classList.add('ativa');
+    if (tela !== 'scanner') pararCamera();
+    if (tela === 'lista') filtrarLista();
+  }
+
+  function mostrarEstadoScanner(estado) {
+    ['inicial', 'camera', 'manual', 'carregando', 'formulario'].forEach(e => {
+      document.getElementById('estado-' + e).classList.toggle('oculto', e !== estado);
+    });
+  }
+
+  function voltarEstadoInicial() {
+    pararCamera();
+    mostrarEstadoScanner('inicial');
+  }
+
+  async function iniciarCamera() {
+    mostrarEstadoScanner('camera');
+    const erroEl = document.getElementById('erro-camera');
+    erroEl.classList.add('oculto');
+    travadoParaLeitura = false;
+
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      mostrarErroCamera('A câmera requer protocolo seguro HTTPS para ser autorizada pelo celular.');
+      return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      mostrarErroCamera('Seu navegador não possui suporte à câmera.');
+      return;
+    }
+
+    try {
+      streamAtivo = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+    } catch (err) {
+      try {
+        streamAtivo = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      } catch (err2) {
+        mostrarErroCamera('Permissão de acesso à câmera negada ou nenhuma câmera disponível.');
+        return;
+      }
+    }
+
+    const video = document.getElementById('video-camera');
+    video.srcObject = streamAtivo;
+    try { await video.play(); } catch (e) {}
+
+    const temNativo = await testarBarcodeDetectorNativo();
+    if (temNativo) {
+      iniciarLoopNativo(video);
+    } else if (typeof ZXing !== 'undefined') {
+      iniciarLoopZXing(video);
+    } else {
+      mostrarErroCamera('Nenhum motor de leitura disponível. Digite manualmente.');
+    }
+  }
+
+  async function testarBarcodeDetectorNativo() {
+    if (!('BarcodeDetector' in window)) return false;
+    try {
+      const formatos = await BarcodeDetector.getSupportedFormats();
+      const desejados = ['ean_13', 'ean_8', 'code_128', 'upc_a', 'upc_e'].filter(f => formatos.includes(f));
+      if (desejados.length > 0) {
+        barcodeDetectorNativo = new BarcodeDetector({ formats: desejados });
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function iniciarLoopNativo(video) {
+    detectorLoop = setInterval(async () => {
+      if (travadoParaLeitura || !barcodeDetectorNativo) return;
+      try {
+        const codigos = await barcodeDetectorNativo.detect(video);
+        if (codigos && codigos.length > 0) {
+          const valor = codigos[0].rawValue;
+          if (valor && !travadoParaLeitura) {
+            travadoParaLeitura = true;
+            vibrarSucesso();
+            pararCamera();
+            processarCodigoDetectado(valor);
+          }
+        }
+      } catch (e) {}
+    }, 200);
+  }
+
+  function iniciarLoopZXing(video) {
+    try {
+      codeReaderZXing = new ZXing.BrowserMultiFormatReader();
+      codeReaderZXing.decodeFromVideoElement(video, (result, err) => {
+        if (result && !travadoParaLeitura) {
+          travadoParaLeitura = true;
+          vibrarSucesso();
+          pararCamera();
+          processarCodigoDetectado(result.getText());
+        }
+      });
+    } catch (e) {
+      mostrarErroCamera('Erro ao iniciar decodificador.');
+    }
+  }
+
+  function vibrarSucesso() {
+    if (navigator.vibrate) {
+      try { navigator.vibrate(80); } catch (e) {}
+    }
+  }
+
+  function pararCamera() {
+    if (detectorLoop) { clearInterval(detectorLoop); detectorLoop = null; }
+    if (codeReaderZXing) {
+      try { codeReaderZXing.reset(); } catch (e) {}
+      codeReaderZXing = null;
+    }
+    if (streamAtivo) {
+      streamAtivo.getTracks().forEach(t => t.stop());
+      streamAtivo = null;
+    }
+    const video = document.getElementById('video-camera');
+    video.srcObject = null;
+  }
+
+  function mostrarErroCamera(mensagem) {
+    const erroEl = document.getElementById('erro-camera');
+    erroEl.textContent = mensagem;
+    erroEl.classList.remove('oculto');
+  }
+
+  function mostrarEntradaManual() {
+    document.getElementById('input-codigo-manual').value = '';
+    mostrarEstadoScanner('manual');
+    setTimeout(() => document.getElementById('input-codigo-manual').focus(), 80);
+  }
+
+  function confirmarCodigoManual() {
+    const codigo = document.getElementById('input-codigo-manual').value.trim();
+    if (!codigo) return;
+    processarCodigoDetectado(codigo);
+  }
+
+  function adicionarSemCodigo() {
+    processarCodigoDetectado('');
+  }
+
+  async function processarCodigoDetectado(codigo) {
+    mostrarEstadoScanner('carregando');
+    let produto = null;
+    if (codigo) {
+      produto = await buscarProdutoAPI(codigo);
+    }
+    preencherFormulario(codigo, produto);
+    mostrarEstadoScanner('formulario');
+  }
+
+  async function buscarProdutoAPI(codigo) {
+    try {
+      const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(codigo)}.json?fields=product_name,product_name_pt,brands,image_front_small_url`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 1 && data.product) {
+          const nome = data.product.product_name_pt || data.product.product_name;
+          if (nome) return { nome, marca: data.product.brands || '', imagem: data.product.image_front_small_url || null };
+        }
+      }
+    } catch (e) {}
+
+    try {
+      const res2 = await fetch(`https://world.openproductsfacts.org/api/v2/product/${encodeURIComponent(codigo)}.json?fields=product_name,brands,image_front_small_url`);
+      if (res2.ok) {
+        const data2 = await res2.json();
+        if (data2.status === 1 && data2.product && data2.product.product_name) {
+          return { nome: data2.product.product_name, marca: data2.product.brands || '', imagem: data2.product.image_front_small_url || null };
+        }
+      }
+    } catch (e) {}
+
+    return null;
+  }
+
+  function preencherFormulario(codigo, produto) {
+    document.getElementById('form-codigo').value = codigo;
+    document.getElementById('form-nome').value = produto?.nome || '';
+    document.getElementById('form-validade').value = '';
+    document.getElementById('form-quantidade').value = 1;
+    document.getElementById('erro-formulario').classList.add('oculto');
+
+    const imgEl = document.getElementById('form-imagem');
+    if (produto?.imagem) {
+      imgEl.src = produto.imagem;
+      imgEl.classList.remove('oculto');
+    } else {
+      imgEl.classList.add('oculto');
+    }
+
+    const marcaEl = document.getElementById('form-marca-linha');
+    if (produto?.marca) {
+      document.getElementById('form-marca').textContent = produto.marca;
+      marcaEl.classList.remove('oculto');
+    } else {
+      marcaEl.classList.add('oculto');
+    }
+
+    document.getElementById('aviso-nao-encontrado').classList.toggle('oculto', !codigo || !!produto);
+  }
+
+  function alterarQuantidade(delta) {
+    const input = document.getElementById('form-quantidade');
+    input.value = Math.max(1, (parseInt(input.value) || 1) + delta);
+  }
+
+  function cancelarFormulario() {
+    voltarEstadoInicial();
+  }
+
+  function salvarItem() {
+    const nome = document.getElementById('form-nome').value.trim();
+    const validade = document.getElementById('form-validade').value;
+    const quantidade = parseInt(document.getElementById('form-quantidade').value) || 1;
+    const erroEl = document.getElementById('erro-formulario');
+
+    if (!nome || !validade) {
+      erroEl.textContent = 'Informe o nome do produto e a data de validade.';
+      erroEl.classList.remove('oculto');
+      return;
+    }
+
+    const imgEl = document.getElementById('form-imagem');
+    const item = {
+      id: Date.now().toString(),
+      codigoBarras: document.getElementById('form-codigo').value,
+      nome,
+      marca: document.getElementById('form-marca').textContent || '',
+      imagem: !imgEl.classList.contains('oculto') ? imgEl.src : null,
+      validade,
+      quantidade,
+      cadastradoEm: new Date().toISOString()
+    };
+
+    itens.push(item);
+    salvarItens();
+    filtrarLista();
+    voltarEstadoInicial();
+    mostrarToast(`"${nome}" adicionado!`);
+  }
+
+  function calcularStatus(validade) {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const dataVal = new Date(validade + 'T00:00:00');
+    const diffDias = Math.round((dataVal - hoje) / 86400000);
+
+    if (diffDias < 0) {
+      const d = Math.abs(diffDias);
+      return { classe: 'vencido', texto: d === 1 ? 'Venceu ontem' : `Vencido há ${d} dias` };
+    }
+    if (diffDias === 0) return { classe: 'vencendo', texto: 'Vence hoje!' };
+    if (diffDias === 1) return { classe: 'vencendo', texto: 'Vence amanhã' };
+    if (diffDias <= 7) return { classe: 'vencendo', texto: `Vence em ${diffDias} dias` };
+    return { classe: 'valido', texto: '' };
+  }
+
+  function formatarDataBR(iso) {
+    const [ano, mes, dia] = iso.split('-');
+    return `${dia}/${mes}/${ano}`;
+  }
+
+  function escapeHtml(texto) {
+    const d = document.createElement('div');
+    d.textContent = texto || '';
+    return d.innerHTML;
+  }
+
+  function renderizarLista(itensParaExibir = null) {
+    const container = document.getElementById('lista-itens');
+    const dados = itensParaExibir !== null ? itensParaExibir : itens;
+
+    if (dados.length === 0) {
+      const temBusca = document.getElementById('input-pesquisa')?.value.trim() !== '';
+      container.innerHTML = `
+        <div class="vazio">
+          <p>${temBusca ? 'Nenhum resultado encontrado' : 'Nenhum produto cadastrado'}</p>
+          <p class="vazio-sub">${temBusca ? 'Tente buscar com outros termos.' : 'Escaneie o primeiro código de barras para começar.'}</p>
+        </div>`;
+      return;
+    }
+
+    const grupos = { vencido: [], vencendo: [], valido: [] };
+    dados.forEach(item => {
+      const status = calcularStatus(item.validade);
+      grupos[status.classe].push({ item, status });
+    });
+
+    Object.values(grupos).forEach(arr => arr.sort((a, b) => a.item.validade.localeCompare(b.item.validade)));
+
+    const categorias = [
+      { chave: 'vencido', titulo: 'Vencidos' },
+      { chave: 'vencendo', titulo: 'Vencendo em breve (até 7 dias)' },
+      { chave: 'valido', titulo: 'Dentro do prazo' }
+    ];
+
+    container.innerHTML = categorias
+      .filter(c => grupos[c.chave].length > 0)
+      .map(c => `
+        <div class="secao-lista secao-${c.chave}">
+          <div class="secao-titulo">
+            <span>${c.titulo}</span>
+            <span class="contagem">${grupos[c.chave].length}</span>
+          </div>
+          ${grupos[c.chave].map(({ item, status }) => renderizarLinha(item, status)).join('')}
+        </div>
+      `).join('');
+  }
+
+  function renderizarLinha(item, status) {
+    const imagemHtml = item.imagem
+      ? `<img src="${item.imagem}" class="item-imagem" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="item-imagem-placeholder" style="display:none">📦</div>`
+      : `<div class="item-imagem-placeholder">📦</div>`;
+    const tagHtml = status.texto ? `<span class="tag-dias ${status.classe}">${status.texto}</span>` : '';
+
+    return `
+      <div class="item-linha">
+        ${imagemHtml}
+        <div class="item-info">
+          <div class="item-nome">${escapeHtml(item.nome)}</div>
+          <div class="item-meta">
+            <span class="item-detalhes">${item.quantidade} un · ${formatarDataBR(item.validade)}</span>
+            ${tagHtml}
+          </div>
+        </div>
+        <div class="item-acoes">
+          <button onclick="editarItem('${item.id}')" class="btn-icone" aria-label="Editar">✏️</button>
+          <button onclick="removerItem('${item.id}')" class="btn-icone" aria-label="Remover">🗑️</button>
+        </div>
+      </div>`;
+  }
+
+  function removerItem(id) {
+    const item = itens.find(i => i.id === id);
+    if (!item) return;
+    if (confirm(`Remover "${item.nome}"?`)) {
+      itens = itens.filter(i => i.id !== id);
+      salvarItens();
+      filtrarLista();
+      mostrarToast('Item removido');
+    }
+  }
+
+  function filtrarLista() {
+    const termo = (document.getElementById('input-pesquisa').value || '').toLowerCase().trim();
+    if (!termo) {
+      renderizarLista(itens);
+      return;
+    }
+    const filtrados = itens.filter(i => 
+      (i.nome && i.nome.toLowerCase().includes(termo)) ||
+      (i.codigoBarras && i.codigoBarras.includes(termo)) ||
+      (i.marca && i.marca.toLowerCase().includes(termo))
+    );
+    renderizarLista(filtrados);
+  }
+
+  function exportarCSV() {
+    if (itens.length === 0) {
+      alert('Não há itens cadastrados para exportar.');
+      return;
+    }
+
+    const cabecalho = ['Nome', 'Marca', 'Código de Barras', 'Validade', 'Quantidade', 'Status'];
+    const linhas = itens.map(i => {
+      const status = calcularStatus(i.validade);
+      const textoStatus = status.classe === 'vencido' ? 'Vencido' : (status.classe === 'vencendo' ? 'Vencendo' : 'Válido');
+      return [
+        `"${(i.nome || '').replace(/"/g, '""')}"`,
+        `"${(i.marca || '').replace(/"/g, '""')}"`,
+        `"${i.codigoBarras || ''}"`,
+        `"${formatarDataBR(i.validade)}"`,
+        i.quantidade,
+        `"${textoStatus}"`
+      ].join(';');
+    });
+
+    const csvContent = '\uFEFF' + [cabecalho.join(';'), ...linhas].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `controle_validade_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    mostrarToast('Planilha CSV baixada com sucesso!');
+  }
+
+  function editarItem(id) {
+    const item = itens.find(i => i.id === id);
+    if (!item) return;
+    itemEditandoId = id;
+    document.getElementById('edit-nome').value = item.nome;
+    document.getElementById('edit-validade').value = item.validade;
+    document.getElementById('edit-quantidade').value = item.quantidade;
+    document.getElementById('modal-editar').classList.remove('oculto');
+  }
+
+  function alterarQuantidadeEdicao(delta) {
+    const input = document.getElementById('edit-quantidade');
+    input.value = Math.max(1, (parseInt(input.value) || 1) + delta);
+  }
+
+  function salvarEdicao() {
+    const item = itens.find(i => i.id === itemEditandoId);
+    if (!item) return;
+    const nome = document.getElementById('edit-nome').value.trim();
+    const validade = document.getElementById('edit-validade').value;
+    if (!nome || !validade) {
+      alert('Preencha o nome e a validade');
+      return;
+    }
+    item.nome = nome;
+    item.validade = validade;
+    item.quantidade = parseInt(document.getElementById('edit-quantidade').value) || 1;
+    salvarItens();
+    filtrarLista();
+    fecharModalEdicao();
+    mostrarToast('Alterações salvas');
+  }
+
+  function fecharModalEdicao() {
+    document.getElementById('modal-editar').classList.add('oculto');
+    itemEditandoId = null;
+  }
+
+  function mostrarToast(mensagem) {
+    const toast = document.getElementById('toast');
+    toast.textContent = mensagem;
+    toast.classList.remove('oculto');
+    requestAnimationFrame(() => toast.classList.add('mostrar'));
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+      toast.classList.remove('mostrar');
+      setTimeout(() => toast.classList.add('oculto'), 250);
+    }, 2400);
+  }
+
+  document.addEventListener('DOMContentLoaded', carregarItens);
+</script>
+</body>
+</html>
